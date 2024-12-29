@@ -354,3 +354,90 @@ plt.title('Regression Comparison: KAN vs MLP')
 plt.legend()
 plt.grid(True)
 plt.show()
+
+
+
+from sklearn import datasets
+
+n_samples = 50
+noise = 0.1
+x_train_cl, y_train_cl = datasets.make_moons(n_samples=n_samples, noise=noise)
+
+x_train_cl[:, 0] = (x_train_cl[:, 0] - min(x_train_cl[:, 0])) / max(x_train_cl[:, 0] - min(x_train_cl[:, 0])) * 2 - 1
+x_train_cl[:, 1] = (x_train_cl[:, 1] - min(x_train_cl[:, 1])) / max(x_train_cl[:, 1] - min(x_train_cl[:, 1])) * 2 - 1
+
+fig, ax = plt.subplots(figsize=(4,3))
+ax.scatter(*x_train_cl.T, c=y_train_cl, cmap=plt.cm.bwr)
+ax.set_xlabel('input feature 1')
+ax.set_ylabel('input feature 2')
+ax.grid()
+ax.set_title("Training data")
+plt.show()
+
+n_iter_train_cl = int(1e3)
+loss_tol_cl = 1.5
+seed = 476
+
+
+kan_cl = FeedForward([2, 2],  
+                     eps=.02,  
+                     n_weights_per_edge=8,  
+                     neuron_class=NeuronKAN, 
+                     loss=CrossEntropyLoss,
+                     x_bounds=[-1, 1],  
+                     get_edge_fun=get_bsplines,  
+                     seed=seed,
+                     weights_range=[-1, 1])
+kan_cl.train(x_train_cl, 
+             y_train_cl.reshape(-1, 1), 
+             n_iter_max=n_iter_train_cl, 
+             loss_tol=loss_tol_cl)
+
+mlp_cl = FeedForward([2, 10, 10, 2],  
+                     eps=.01,  
+                     activation=tanh_act,  
+                     neuron_class=NeuronNN, 
+                     loss=CrossEntropyLoss,
+                     seed=seed, 
+                     weights_range=[-1, 1])
+mlp_cl.train(x_train_cl, 
+             y_train_cl.reshape(-1, 1), 
+             n_iter_max=n_iter_train_cl, 
+             loss_tol=loss_tol_cl)
+
+
+def softmax(vec):
+    return np.exp(vec) / sum(np.exp(vec))
+
+X1_cl, X2_cl = np.meshgrid(np.linspace(-1, 1, 40), np.linspace(-1, 1, 50))
+x_cl = np.concatenate((X1_cl.reshape(-1, 1), X2_cl.reshape(-1, 1)), axis=1)
+
+Y_kan_cl = np.array([softmax(kan_cl(x))[1] for x in x_cl]).reshape(X1_cl.shape)
+Y_mlp_cl = np.array([softmax(mlp_cl(x))[1] for x in x_cl]).reshape(X1_cl.shape)
+
+fig_cl, ax_cl = plt.subplots(1, 3, figsize=(12,3))
+
+
+ax_cl[0].scatter(*x_train_cl.T, c=y_train_cl, cmap=plt.cm.bwr)
+ax_cl[0].grid()
+ax_cl[0].set_title('Training data')
+ax_cl[0].set_xlabel('input feature 1')
+ax_cl[0].set_ylabel('input feature 2')
+
+im0 = ax_cl[1].pcolor(X1_cl, X2_cl, Y_kan_cl, vmin=0, vmax=1, cmap=plt.cm.bwr)
+ax_cl[1].scatter(*x_train_cl.T, c=y_train_cl, cmap=plt.cm.bwr)
+ax_cl[1].set_title('KAN classification')
+ax_cl[1].set_xlabel('input feature 1')
+ax_cl[1].set_ylabel('input feature 2')
+
+im1 = ax_cl[2].pcolor(X1_cl, X2_cl, Y_mlp_cl, vmin=0, vmax=1, cmap=plt.cm.bwr)
+ax_cl[2].scatter(*x_train_cl.T, c=y_train_cl, cmap=plt.cm.bwr)
+ax_cl[2].set_title('MLP classification')
+ax_cl[2].set_xlabel('input feature 1')
+ax_cl[2].set_ylabel('input feature 2')
+
+fig_cl.colorbar(im1, ax=ax_cl[0])
+fig_cl.colorbar(im1, ax=ax_cl[1])
+fig_cl.colorbar(im1, ax=ax_cl[2])
+fig_cl.tight_layout()
+plt.show()
